@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dungeon Escape</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #eee;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  #header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 500px;
+    padding: 8px 12px 4px;
+    gap: 8px;
+  }
+
+  .stat-box {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 13px;
+    text-align: center;
+    min-width: 70px;
+  }
+  .stat-box span { display: block; font-size: 10px; color: #888; }
+  #hp-val   { color: #e74c3c; font-weight: bold; }
+  #score-val{ color: #f1c40f; font-weight: bold; }
+  #turn-val { color: #3498db; font-weight: bold; }
+
+  #hp-bar-wrap {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 4px 10px;
+    flex: 1;
+  }
+  #hp-bar-wrap span { font-size: 10px; color: #888; display: block; margin-bottom: 3px; }
+  #hp-bar-bg {
+    background: #333;
+    border-radius: 4px;
+    height: 10px;
+    width: 100%;
+  }
+  #hp-bar {
+    background: linear-gradient(90deg, #e74c3c, #e74c3c);
+    border-radius: 4px;
+    height: 10px;
+    transition: width 0.2s, background 0.2s;
+  }
+
+  #canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 500px;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    border: 2px solid #2a2a4a;
+    border-radius: 8px;
+  }
+
+  #message {
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    font-size: 12px;
+    color: #c084fc;
+    min-height: 18px;
+    padding: 2px 8px;
+  }
+
+  /* D-Pad */
+  #dpad {
+    display: grid;
+    grid-template-columns: 56px 56px 56px;
+    grid-template-rows: 56px 56px 56px;
+    gap: 4px;
+    margin: 6px 0 10px;
+  }
+
+  .dpad-btn {
+    background: #1a1a2e;
+    border: 2px solid #3a3a6a;
+    border-radius: 10px;
+    color: #aaa;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s, transform 0.1s;
+    grid-column: var(--gc);
+    grid-row: var(--gr);
+  }
+  .dpad-btn:active, .dpad-btn.pressed {
+    background: #2d2d6a;
+    transform: scale(0.92);
+    border-color: #7c7cff;
+    color: #fff;
+  }
+  .dpad-center {
+    background: #111;
+    border-color: #222;
+    border-radius: 50%;
+    cursor: default;
+  }
+
+  /* Screens */
+  .screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 10;
+    padding: 24px;
+    text-align: center;
+  }
+  .screen h1 { font-size: 28px; color: #a78bfa; letter-spacing: 3px; }
+  .screen h2 { font-size: 20px; color: #f1c40f; }
+  .screen p  { font-size: 14px; color: #aaa; max-width: 320px; line-height: 1.6; }
+  .screen .legend { font-size: 13px; line-height: 2; }
+  .legend-row { display: flex; align-items: center; gap: 10px; }
+  .legend-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: bold; flex-shrink: 0;
+  }
+
+  .btn {
+    background: linear-gradient(135deg, #6c3fc5, #a855f7);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+    margin-top: 8px;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  #score-big { font-size: 44px; font-weight: bold; color: #f1c40f; }
+</style>
+</head>
+<body>
+
+<!-- Title screen -->
+<div class="screen" id="title-screen">
+  <h1>⚔️ DUNGEON ESCAPE</h1>
+  <div class="legend">
+    <div class="legend-row"><div class="legend-icon" style="background:#27ae60">@</div><span>Sos vos</span></div>
+    <div class="legend-row"><div class="legend-icon" style="background:#e74c3c">M</div><span>Monstruo (tapealo para atacar)</span></div>
+    <div class="legend-row"><div class="legend-icon" style="background:#f39c12">$</div><span>Tesoro (+25 pts)</span></div>
+    <div class="legend-row"><div class="legend-icon" style="background:#00bcd4">E</div><span>Salida (¡llegá para ganar!)</span></div>
+  </div>
+  <p>Moví con los botones de abajo.<br>Atacá caminando sobre los monstruos.<br>¡Llegá a la salida para escapar!</p>
+  <button class="btn" id="start-btn">JUGAR</button>
+</div>
+
+<!-- Win screen -->
+<div class="screen" id="win-screen" style="display:none">
+  <h1>🏆 ¡ESCAPASTE!</h1>
+  <div id="score-big">0</div>
+  <p id="win-msg"></p>
+  <button class="btn" id="next-btn">SIGUIENTE MAZMORRA</button>
+</div>
+
+<!-- Dead screen -->
+<div class="screen" id="dead-screen" style="display:none">
+  <h1>💀 MORISTE</h1>
+  <div id="score-dead-big" style="font-size:44px;font-weight:bold;color:#e74c3c">0</div>
+  <p>Los monstruos te vencieron...</p>
+  <button class="btn" id="retry-btn" style="background:linear-gradient(135deg,#c0392b,#e74c3c)">REINTENTAR</button>
+</div>
+
+<!-- HUD -->
+<div id="header">
+  <div class="stat-box"><span>HP</span><span id="hp-val">10</span></div>
+  <div id="hp-bar-wrap"><span>Vida</span><div id="hp-bar-bg"><div id="hp-bar" style="width:100%"></div></div></div>
+  <div class="stat-box"><span>Score</span><span id="score-val">0</span></div>
+  <div class="stat-box"><span>Turno</span><span id="turn-val">0</span></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+</div>
+
+<div id="message">Encontrá la salida E y escapá!</div>
+
+<!-- D-Pad -->
+<div id="dpad">
+  <div></div>
+  <div class="dpad-btn" style="--gc:2;--gr:1" id="btn-up">▲</div>
+  <div></div>
+  <div class="dpad-btn" style="--gc:1;--gr:2" id="btn-left">◀</div>
+  <div class="dpad-btn dpad-center" style="--gc:2;--gr:2"></div>
+  <div class="dpad-btn" style="--gc:3;--gr:2" id="btn-right">▶</div>
+  <div></div>
+  <div class="dpad-btn" style="--gc:2;--gr:3" id="btn-down">▼</div>
+  <div></div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const TILE = 20;
+const DW = 72, DH = 36;
+const NUM_ROOMS = 9, NUM_MONSTERS = 10, NUM_TREASURES = 14;
+
+// ── Dungeon generation ───────────────────────────────────────────────────────
+function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+
+function makeDungeon() {
+  const grid = Array.from({length: DH}, () => Array(DW).fill('#'));
+  const rooms = [];
+
+  for (let attempt = 0; attempt < NUM_ROOMS * 6 && rooms.length < NUM_ROOMS; attempt++) {
+    const w = rnd(5, 11), h = rnd(4, 7);
+    const x = rnd(1, DW - w - 1), y = rnd(1, DH - h - 1);
+
+    const overlaps = rooms.some(r =>
+      r.x - 1 <= x + w && x - 1 <= r.x + r.w &&
+      r.y - 1 <= y + h && y - 1 <= r.y + r.h
+    );
+    if (overlaps) continue;
+
+    for (let cy = y; cy < y + h; cy++)
+      for (let cx = x; cx < x + w; cx++)
+        grid[cy][cx] = '.';
+
+    rooms.push({x, y, w, h});
+  }
+
+  // Corridors
+  for (let i = 0; i < rooms.length - 1; i++) {
+    let ax = rooms[i].x + (rooms[i].w >> 1),   ay = rooms[i].y + (rooms[i].h >> 1);
+    let bx = rooms[i+1].x + (rooms[i+1].w >> 1), by = rooms[i+1].y + (rooms[i+1].h >> 1);
+    let cx = ax, cy = ay;
+    while (cx !== bx) { grid[cy][cx] = '.'; cx += bx > cx ? 1 : -1; }
+    while (cy !== by) { grid[cy][cx] = '.'; cy += by > cy ? 1 : -1; }
+  }
+  return {grid, rooms};
+}
+
+function randomFloor(grid, exclude) {
+  while (true) {
+    const x = rnd(1, DW - 2), y = rnd(1, DH - 2);
+    const key = `${x},${y}`;
+    if (grid[y][x] === '.' && !exclude.has(key)) return {x, y};
+  }
+}
+
+// ── Game state ───────────────────────────────────────────────────────────────
+let G; // game object
+
+function newGame() {
+  const {grid, rooms} = makeDungeon();
+  const occupied = new Set();
+
+  const {x: px, y: py} = randomFloor(grid, occupied);
+  occupied.add(`${px},${py}`);
+
+  const lastRoom = rooms[rooms.length - 1];
+  const ex = lastRoom.x + (lastRoom.w >> 1);
+  const ey = lastRoom.y + (lastRoom.h >> 1);
+  occupied.add(`${ex},${ey}`);
+
+  const monsters = [];
+  for (let i = 0; i < NUM_MONSTERS; i++) {
+    const {x, y} = randomFloor(grid, occupied);
+    occupied.add(`${x},${y}`);
+    monsters.push({x, y, hp: 3, maxHp: 3});
+  }
+
+  const treasures = new Set();
+  for (let i = 0; i < NUM_TREASURES; i++) {
+    const {x, y} = randomFloor(grid, occupied);
+    occupied.add(`${x},${y}`);
+    treasures.add(`${x},${y}`);
+  }
+
+  G = {
+    grid, rooms,
+    px, py,
+    ex, ey,
+    monsters, treasures,
+    hp: 10, maxHp: 10,
+    score: 0, turn: 0,
+    alive: true
+  };
+}
+
+// ── Monster AI ───────────────────────────────────────────────────────────────
+function moveMonsters() {
+  const {grid, monsters, px, py, treasures} = G;
+  const mpos = new Set(monsters.map(m => `${m.x},${m.y}`));
+
+  for (const m of monsters) {
+    const dx = px - m.x, dy = py - m.y;
+    if (Math.abs(dx) + Math.abs(dy) > 8) continue;
+
+    const steps = Math.abs(dx) >= Math.abs(dy)
+      ? [{sx: Math.sign(dx), sy: 0}, {sx: 0, sy: Math.sign(dy)}]
+      : [{sx: 0, sy: Math.sign(dy)}, {sx: Math.sign(dx), sy: 0}];
+
+    for (const {sx, sy} of steps) {
+      if (!sx && !sy) continue;
+      const nx = m.x + sx, ny = m.y + sy;
+      const key = `${nx},${ny}`;
+      if (grid[ny][nx] !== '#' && !treasures.has(key) && !mpos.has(key)) {
+        mpos.delete(`${m.x},${m.y}`);
+        m.x = nx; m.y = ny;
+        mpos.add(key);
+        break;
+      }
+    }
+  }
+}
+
+function checkMonsterAttacks() {
+  const {monsters, px, py} = G;
+  for (const m of monsters) {
+    if (Math.abs(m.x - px) + Math.abs(m.y - py) <= 1) {
+      G.hp--;
+    }
+  }
+}
+
+// ── Move player ──────────────────────────────────────────────────────────────
+function tryMove(dx, dy) {
+  if (!G.alive) return;
+  const nx = G.px + dx, ny = G.py + dy;
+  if (G.grid[ny][nx] === '#') { setMsg("Blocked by wall."); return; }
+
+  const attacked = G.monsters.find(m => m.x === nx && m.y === ny);
+  if (attacked) {
+    attacked.hp--;
+    G.score += 10;
+    if (attacked.hp <= 0) {
+      G.monsters = G.monsters.filter(m => m !== attacked);
+      G.score += 50;
+      setMsg(`¡Monstruo eliminado! +50 pts`);
+    } else {
+      setMsg(`Golpeaste al monstruo (${attacked.hp} HP restante)`);
+    }
+    G.turn++;
+    moveMonsters();
+    checkMonsterAttacks();
+    checkDeath();
+    render(); updateHUD();
+    return;
+  }
+
+  G.px = nx; G.py = ny;
+  G.turn++;
+
+  const tkey = `${nx},${ny}`;
+  if (G.treasures.has(tkey)) {
+    G.treasures.delete(tkey);
+    G.score += 25;
+    setMsg(`¡Tesoro! +25 pts`);
+  } else if (nx === G.ex && ny === G.ey) {
+    win(); return;
+  } else {
+    setMsg(G.monsters.length === 0
+      ? "¡Todos los monstruos eliminados! Encontrá la salida E."
+      : `${G.monsters.length} monstruos restantes. Encontrá la salida E.`);
+  }
+
+  moveMonsters();
+  checkMonsterAttacks();
+  checkDeath();
+  render(); updateHUD();
+}
+
+function checkDeath() {
+  if (G.hp <= 0) {
+    G.hp = 0;
+    G.alive = false;
+    render(); updateHUD();
+    setTimeout(() => {
+      document.getElementById('score-dead-big').textContent = G.score;
+      document.getElementById('dead-screen').style.display = 'flex';
+    }, 400);
+  }
+}
+
+function win() {
+  G.alive = false;
+  const allTreasure = G.treasures.size === 0;
+  const bonus = allTreasure ? 200 : 0;
+  G.score += 100 + bonus;
+  render(); updateHUD();
+  document.getElementById('score-big').textContent = G.score;
+  document.getElementById('win-msg').textContent =
+    allTreasure ? "¡Recolectaste todo el tesoro! Bonus +200 pts." : `Quedaron ${G.treasures.size} tesoros sin recolectar.`;
+  document.getElementById('win-screen').style.display = 'flex';
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const COLORS = {
+  wall:    '#1e1e3a',
+  floor:   '#0d0d1a',
+  player:  '#2ecc71',
+  monster: '#e74c3c',
+  treasure:'#f39c12',
+  exit:    '#00bcd4',
+  grid:    '#161628',
+};
+
+let VTILES_X = 15, VTILES_Y = 13; // viewport in tiles
+
+function initCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const maxW = Math.min(wrap.clientWidth - 8, 500);
+  const maxH = wrap.clientHeight - 8;
+
+  VTILES_X = Math.floor(maxW / TILE);
+  VTILES_Y = Math.floor(maxH / TILE);
+  if (VTILES_X % 2 === 0) VTILES_X--;
+  if (VTILES_Y % 2 === 0) VTILES_Y--;
+
+  canvas.width  = VTILES_X * TILE;
+  canvas.height = VTILES_Y * TILE;
+}
+
+function render() {
+  if (!G) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const {grid, px, py, ex, ey, monsters, treasures} = G;
+  const mpos = new Map(monsters.map(m => [`${m.x},${m.y}`, m]));
+
+  const offX = px - (VTILES_X >> 1);
+  const offY = py - (VTILES_Y >> 1);
+
+  for (let vy = 0; vy < VTILES_Y; vy++) {
+    for (let vx = 0; vx < VTILES_X; vx++) {
+      const wx = offX + vx, wy = offY + vy;
+      const sx = vx * TILE, sy = vy * TILE;
+
+      // Out of bounds → solid black
+      if (wx < 0 || wx >= DW || wy < 0 || wy >= DH) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        continue;
+      }
+
+      const cell = grid[wy][wx];
+      const key  = `${wx},${wy}`;
+      const isPlayer   = wx === px && wy === py;
+      const isExit     = wx === ex && wy === ey;
+      const isTreasure = treasures.has(key);
+      const isMonster  = mpos.has(key);
+
+      // Background
+      ctx.fillStyle = cell === '#' ? COLORS.wall : COLORS.floor;
+      ctx.fillRect(sx, sy, TILE, TILE);
+
+      // Grid lines on floor
+      if (cell === '.') {
+        ctx.strokeStyle = COLORS.grid;
+        ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+      }
+
+      // Wall texture
+      if (cell === '#') {
+        ctx.fillStyle = '#2a2a50';
+        ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
+      }
+
+      if (isPlayer) {
+        drawCircle(sx, sy, COLORS.player);
+        drawText(sx, sy, '@', '#fff');
+      } else if (isExit) {
+        drawCircle(sx, sy, COLORS.exit);
+        drawText(sx, sy, 'E', '#000');
+      } else if (isMonster) {
+        const m = mpos.get(key);
+        drawCircle(sx, sy, COLORS.monster);
+        drawText(sx, sy, m.hp.toString(), '#fff');
+      } else if (isTreasure) {
+        drawCircle(sx, sy, COLORS.treasure);
+        drawText(sx, sy, '$', '#000');
+      }
+    }
+  }
+}
+
+function drawCircle(sx, sy, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(sx + TILE/2, sy + TILE/2, TILE/2 - 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawText(sx, sy, text, color) {
+  ctx.fillStyle = color;
+  ctx.font = `bold ${TILE - 6}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, sx + TILE/2, sy + TILE/2 + 1);
+}
+
+// ── HUD ──────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('hp-val').textContent   = Math.max(0, G.hp);
+  document.getElementById('score-val').textContent = G.score;
+  document.getElementById('turn-val').textContent  = G.turn;
+  const pct = Math.max(0, G.hp / G.maxHp * 100);
+  const bar = document.getElementById('hp-bar');
+  bar.style.width = pct + '%';
+  bar.style.background = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
+}
+
+function setMsg(msg) {
+  document.getElementById('message').textContent = msg;
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-up').addEventListener('pointerdown',    e => { e.preventDefault(); tryMove(0,-1); });
+document.getElementById('btn-down').addEventListener('pointerdown',  e => { e.preventDefault(); tryMove(0, 1); });
+document.getElementById('btn-left').addEventListener('pointerdown',  e => { e.preventDefault(); tryMove(-1,0); });
+document.getElementById('btn-right').addEventListener('pointerdown', e => { e.preventDefault(); tryMove( 1,0); });
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp:'up', w:'up', W:'up',
+    ArrowDown:'down', s:'down', S:'down',
+    ArrowLeft:'left', a:'left', A:'left',
+    ArrowRight:'right', d:'right', D:'right',
+  };
+  const dir = map[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  const delta = {up:[0,-1], down:[0,1], left:[-1,0], right:[1,0]};
+  tryMove(...delta[dir]);
+});
+
+// Swipe
+let touchStartX = 0, touchStartY = 0;
+canvas.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, {passive: true});
+canvas.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+  if (Math.abs(dx) > Math.abs(dy)) tryMove(dx > 0 ? 1 : -1, 0);
+  else tryMove(0, dy > 0 ? 1 : -1);
+}, {passive: true});
+
+// ── Start / Restart ──────────────────────────────────────────────────────────
+function startGame() {
+  initCanvas();
+  newGame();
+  render();
+  updateHUD();
+  setMsg("¡Encontrá la salida E y escapá!");
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('title-screen').style.display = 'none';
+  startGame();
+});
+document.getElementById('next-btn').addEventListener('click', () => {
+  document.getElementById('win-screen').style.display = 'none';
+  startGame();
+});
+document.getElementById('retry-btn').addEventListener('click', () => {
+  document.getElementById('dead-screen').style.display = 'none';
+  startGame();
+});
+
+window.addEventListener('resize', () => {
+  if (G) { initCanvas(); render(); }
+});
+</script>
+</body>
+</html>
